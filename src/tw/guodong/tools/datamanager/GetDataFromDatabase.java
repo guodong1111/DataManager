@@ -57,4 +57,9 @@ class GetDataFromDatabase extends AsyncTask<String, String, byte[]>{
     	}catch(NullPointerException e){
     	}
     }
+    public void destroy(){
+        cancel(true);
+        mContext = null;
+        mGetDataListener = null;
+    }
 }

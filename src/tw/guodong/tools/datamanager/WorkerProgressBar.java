@@ -44,4 +44,9 @@ public class WorkerProgressBar extends ProgressBar {
             });
         }
     }
+
+    public void clearWorks(){
+        works = 0;
+        subWork();
+    }
 }

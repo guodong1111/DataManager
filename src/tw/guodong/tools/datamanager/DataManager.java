@@ -13,14 +13,15 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.util.Log;
 
 public class DataManager {
 	private static int mDataLiveCycle=1;
 	private Context mContext;
 	private String[] mLocation;
 	private String[] mLocationId;
-	private boolean mOnlyInternet=false,mLocalFirst=true,mOnlyLocationIfNotNull=false,mDataUpToDate=false;
-	private GetDataFromDatabase getDataFromDatabase;
+	private boolean mOnlyInternet=false,mLocalFirst=true,mOnlyLocationIfNotNull=false,mDataUpToDate=true;
+	private GetDataFromDatabase mGetDataFromDatabase;
 	private OnGetDataListener mOnGetDataListener;
 	private GetDataFromInternet mGetDataFromInternet;
 	private WorkerProgressBar mProgressBar;
@@ -69,27 +70,26 @@ public class DataManager {
 		return this;
 	}
 	public void startConnect(String... location){
+		Log.v("DataManager","startConnect: "+location[0]);
 		loading=true;
 		mLocation=location;
 		if(!useLocationId){
 			mLocationId=location;
 		}
+        if(null == mContext){
+            return;
+        }
 		if(mProgressBar==null){
-			getDataFromDatabase=new GetDataFromDatabase(mContext);
+            mGetDataFromDatabase=new GetDataFromDatabase(mContext);
 			mGetDataFromInternet=new GetDataFromInternet();
 		}else{
-			getDataFromDatabase=new GetDataFromDatabase(mContext,mProgressBar);
+            mGetDataFromDatabase=new GetDataFromDatabase(mContext,mProgressBar);
 			mGetDataFromInternet=new GetDataFromInternet(mProgressBar);
 		}
 		if(header!=null){
 			mGetDataFromInternet.setHeader(header);
 		}
-        ThreadManager.getInstance(mContext).postToBackgroungThread(new Runnable() {
-            @Override
-            public void run() {
-                getDateFromDataBase();
-            }
-        });
+        getDateFromDataBase();
 	}
 	static public int deleteData(Context context,int dataLiveCycle){
         int deleteDataCount=0;
@@ -99,14 +99,23 @@ public class DataManager {
 		dataBaseHelper.close();
 		return deleteDataCount;
 	}
-	public void destroy(Context context){
-		mGetDataFromInternet.cancel(true);
-		getDataFromDatabase.cancel(true);
+	public void destroy(){
+        if(null != mGetDataFromInternet){
+            mGetDataFromInternet.destroy();
+        }
+        if(null != mGetDataFromDatabase){
+            mGetDataFromDatabase.destroy();
+        }
 		mGetDataFromInternet=null;
-		getDataFromDatabase=null;
-		mContext=null;
+        mGetDataFromDatabase=null;
+        mOnGetDataListener=null;
+        mContext=null;
+        mProgressBar=null;
 	}
 	private void getDataFromInternet(final boolean dataBaseNoData){
+        if(!dataBaseNoData){
+            mGetDataFromInternet.setProgressBar(null);
+        }
 		mGetDataFromInternet.execute(mLocation);
 		if(timeOut>=0){
 			new Thread(new Runnable() {
@@ -122,20 +131,22 @@ public class DataManager {
 		}
 		mGetDataFromInternet.setOnGetDataFromInternetListener(new GetDataFromInternet.OnGetDataFromInternetListener(){
 			public void onGetData(byte[] data) {
+                DataBaseHelper dataBaseHelper=new DataBaseHelper(mContext);
+                boolean newDataAndUpToDate = (dataBaseHelper.addData(data,mLocationId)&&mDataUpToDate);
 				if(mOnlyInternet){
 					returnData(false,data);
 					loading=false;
 				}else{
-					DataBaseHelper dataBaseHelper=new DataBaseHelper(mContext);
-					if((dataBaseHelper.addData(data,mLocationId)&&mDataUpToDate)){
+					if(newDataAndUpToDate){
 						returnData(!dataBaseNoData,data);
 						loading=false;
 					}else if(!mLocalFirst||dataBaseNoData){
 						returnData(false,data);
 						loading=false;
 					}
-					dataBaseHelper.close();
 				}
+                dataBaseHelper.close();
+                destroy();
 			}
 			public void onMissConnect() {
 				if(mOnlyInternet||dataBaseNoData){
@@ -144,8 +155,8 @@ public class DataManager {
 				}else if(mLocalFirst){
 					loading=false;
 				}else{
-					getDataFromDatabase.executeOnExecutor(Executors.newFixedThreadPool(2), mLocationId);
-					getDataFromDatabase.setOnGetDataFromDatabaseListener(new GetDataFromDatabase.OnGetDataFromDatabaseListener() {
+                    mGetDataFromDatabase.executeOnExecutor(Executors.newFixedThreadPool(2), mLocationId);
+                    mGetDataFromDatabase.setOnGetDataFromDatabaseListener(new GetDataFromDatabase.OnGetDataFromDatabaseListener() {
 						public void onGetData(byte[] data) {
 							returnData(false,data);
 							loading=false;
@@ -164,14 +175,16 @@ public class DataManager {
 			getDataFromInternet(false);
 		}else{
 			loading=true;
-			getDataFromDatabase.executeOnExecutor(Executors.newFixedThreadPool(2), mLocationId);
-			getDataFromDatabase.setOnGetDataFromDatabaseListener(new GetDataFromDatabase.OnGetDataFromDatabaseListener() {
+            mGetDataFromDatabase.executeOnExecutor(Executors.newFixedThreadPool(2), mLocationId);
+            mGetDataFromDatabase.setOnGetDataFromDatabaseListener(new GetDataFromDatabase.OnGetDataFromDatabaseListener() {
 				public void onGetData(byte[] data) {
 					returnData(false,data);
 					loading=false;
 					if(!mOnlyLocationIfNotNull){
 						getDataFromInternet(false);
-					}
+					}else{
+                        destroy();
+                    }
 				}
 				public void onMissConnect() {
 					getDataFromInternet(true);
@@ -179,25 +192,21 @@ public class DataManager {
 			});
 		}
 	}
-	private void returnData(final boolean newData,final byte[] data){
-        ThreadManager.getInstance(mContext).postToUIThread(new Runnable() {
-            @Override
-            public void run() {
-                if(mOnGetDataListener!=null){
-                    mOnGetDataListener.onGetData(newData,data);
-                }
+	private void returnData(boolean newData,byte[] data){
+        try{
+            mOnGetDataListener.onGetData(newData,data);
+        }catch(Exception e){
+            if(mOnlyInternet || (mDataUpToDate && newData)){
+                returnMissConnect();
             }
-        });
+        }
 	}
 	private void returnMissConnect(){
-        ThreadManager.getInstance(mContext).postToUIThread(new Runnable() {
-            @Override
-            public void run() {
-                if(mOnGetDataListener!=null){
-                    mOnGetDataListener.onMissConnect();
-                }
-            }
-        });
+        try{
+            mOnGetDataListener.onMissConnect();
+        }catch(Exception e){
+        }
+        destroy();
 	}
 	public void setOnGetDataListener(OnGetDataListener onGetDataListener){
 		mOnGetDataListener=onGetDataListener;

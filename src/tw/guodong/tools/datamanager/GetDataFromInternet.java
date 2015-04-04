@@ -1,6 +1,11 @@
 package tw.guodong.tools.datamanager;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Locale;
 
 import org.apache.http.Header;
@@ -29,45 +34,47 @@ class GetDataFromInternet extends AsyncTask<String, Integer, byte[]>{
 	public void setHeader(Header header){
 		this.header=header;
 	}
-	protected byte[] doInBackground(String... url) {
-		byte[] data =null;
-		HttpEntity entity = null;
+	protected byte[] doInBackground(String... urls) {
+		byte[] data = null;
+		HttpURLConnection urlConnection = null;
 		try {
-			entity = requestInputStream(url[0]);
-			if(entity !=null){
-				data = fileWrite(entity); 
+			URL url = new URL(urls[0]);
+			urlConnection = (HttpURLConnection) url.openConnection();
+			String acceptLanguage = Locale.getDefault().getLanguage() + "-" + Locale.getDefault().getCountry();
+			urlConnection.setRequestProperty("Accept-Language", acceptLanguage);
+			if(null != header){
+				urlConnection.setRequestProperty(header.getName(),header.getValue());
+			}
+			InputStream inputStream = new BufferedInputStream(urlConnection.getInputStream());
+			data = readStream(inputStream);
+			if(data.length == 0){
+				data=null;
 			}
 		}catch (Exception e) {
 			Log.e("DataManager", e.toString());
+		}finally {
+			if(null != urlConnection){
+				urlConnection.disconnect();
+			}
 		}
 		return data;
 	}
-	
-	private HttpEntity requestInputStream(String url) throws  IOException {
-		HttpEntity httpEntity = null;  
-        HttpGet httpGet = new HttpGet(url);
-	    if(header!=null){
-	    	httpGet.setHeader(header);
-	    }
-	    String acceptLanguage = Locale.getDefault().getLanguage() + "-" + Locale.getDefault().getCountry();
-	    httpGet.setHeader(new BasicHeader("Accept-Language",acceptLanguage));
-        HttpClient httpClient = new DefaultHttpClient();  
-        HttpResponse httpResponse = httpClient.execute(httpGet);  
-        int httpStatusCode = httpResponse.getStatusLine().getStatusCode(); 
-        if(httpStatusCode == HttpStatus.SC_OK) {  
-            httpEntity = httpResponse.getEntity();
-        }  
-        return httpEntity;  
-    }  
-	
-	private byte[] fileWrite(HttpEntity httpEntity) throws IOException {  
-        byte[] data = null;
-    	data = EntityUtils.toByteArray(httpEntity);
-    	if(data.length==0){
-    		data=null;
-    	}
-        return data;
-    }  
+
+	public static byte[] readStream(InputStream inStream) throws Exception {
+		ByteArrayOutputStream outSteam = new ByteArrayOutputStream();
+		byte[] buffer = new byte[1024];
+		int len = -1;
+		while ((len = inStream.read(buffer)) != -1) {
+			outSteam.write(buffer, 0, len);
+		}
+		outSteam.close();
+		inStream.close();
+		return outSteam.toByteArray();
+	}
+
+	protected void setProgressBar(WorkerProgressBar workerProgressBar){
+        mProgressBar = workerProgressBar;
+    }
 	
 	protected void onPostExecute(byte[] data) {
 		setProgressBarGONE();
@@ -107,5 +114,9 @@ class GetDataFromInternet extends AsyncTask<String, Integer, byte[]>{
             mProgressBar.subWork();
     	}catch(NullPointerException e){
     	}
+    }
+    public void destroy(){
+        cancel(true);
+        mGetDataListener = null;
     }
 }
