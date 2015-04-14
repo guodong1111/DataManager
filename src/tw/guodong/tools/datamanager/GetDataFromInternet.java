@@ -2,21 +2,12 @@ package tw.guodong.tools.datamanager;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
 
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
 
 import android.os.AsyncTask;
 import android.util.Log;
@@ -46,12 +37,12 @@ class GetDataFromInternet extends AsyncTask<String, Integer, byte[]>{
 				urlConnection.setRequestProperty(header.getName(),header.getValue());
 			}
 			InputStream inputStream = new BufferedInputStream(urlConnection.getInputStream());
-			data = readStream(inputStream);
+			data = readInputStream(inputStream);
 			if(data.length == 0){
 				data=null;
 			}
 		}catch (Exception e) {
-			Log.e("DataManager", e.toString());
+			Log.e("DataManager", urls[0] + "  " + e.toString());
 		}finally {
 			if(null != urlConnection){
 				urlConnection.disconnect();
@@ -60,16 +51,18 @@ class GetDataFromInternet extends AsyncTask<String, Integer, byte[]>{
 		return data;
 	}
 
-	public static byte[] readStream(InputStream inStream) throws Exception {
-		ByteArrayOutputStream outSteam = new ByteArrayOutputStream();
-		byte[] buffer = new byte[1024];
-		int len = -1;
-		while ((len = inStream.read(buffer)) != -1) {
-			outSteam.write(buffer, 0, len);
+	public static byte[] readInputStream(InputStream inputStream) throws Exception {
+		BufferedInputStream bufferedInputStream = new BufferedInputStream(inputStream);
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		int size = 1024;
+		byte[] buffer = new byte[size];
+		int len;
+		while ((len = bufferedInputStream.read(buffer)) != -1) {
+			outputStream.write(buffer, 0, len);
 		}
-		outSteam.close();
-		inStream.close();
-		return outSteam.toByteArray();
+		outputStream.close();
+		bufferedInputStream.close();
+		return outputStream.toByteArray();
 	}
 
 	protected void setProgressBar(WorkerProgressBar workerProgressBar){

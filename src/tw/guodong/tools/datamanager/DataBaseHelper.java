@@ -9,7 +9,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.util.Log;
 
 public class DataBaseHelper extends SQLiteOpenHelper{
 	private final static int  	DBVersion = 1;
@@ -100,7 +99,6 @@ public class DataBaseHelper extends SQLiteOpenHelper{
         SQLiteDatabase db = this.getWritableDatabase();
 	    try{  
 	        deleteDataCount=db.delete(TableName, CreateDate +" <= ?", new String[]{String.valueOf(((new Date().getTime())/(24*60*60*1000))-dataLiveCycle)});
-		    Log.i("DataManager",deleteDataCount+"");
 	    }catch(Exception e){
 	    }finally{
 	        db.close();  

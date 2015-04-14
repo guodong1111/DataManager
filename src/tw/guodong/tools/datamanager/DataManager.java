@@ -13,6 +13,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
 import android.util.Log;
 
 public class DataManager {
@@ -116,7 +117,7 @@ public class DataManager {
         if(!dataBaseNoData){
             mGetDataFromInternet.setProgressBar(null);
         }
-		mGetDataFromInternet.execute(mLocation);
+		mGetDataFromInternet.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,mLocation);
 		if(timeOut>=0){
 			new Thread(new Runnable() {
 				public void run() {
