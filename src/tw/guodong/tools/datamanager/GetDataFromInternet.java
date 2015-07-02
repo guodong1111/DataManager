@@ -36,6 +36,7 @@ class GetDataFromInternet extends AsyncTask<String, Integer, byte[]>{
 			if(null != header){
 				urlConnection.setRequestProperty(header.getName(),header.getValue());
 			}
+			urlConnection.connect();
 			InputStream inputStream = new BufferedInputStream(urlConnection.getInputStream());
 			data = readInputStream(inputStream);
 			if(data.length == 0){
